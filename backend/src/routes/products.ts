@@ -230,6 +230,8 @@ router.put("/:id", (req, res) => {
 /**
  * DELETE /api/products/:id
  * Soft-delete a product (sets deleted_at timestamp).
+ * Returns 404 if the product never existed.
+ * Returns 409 if the product was already soft-deleted (includes deleted_at).
  */
 router.delete("/:id", (req, res) => {
   const id = Number(req.params.id);
@@ -239,8 +241,14 @@ router.delete("/:id", (req, res) => {
     .get(id) as Record<string, unknown> | undefined;
 
   if (!product) {
-    // FIXME: Returns plain text — not JSON like other error responses
-    return res.status(404).send("Product not found");
+    return res.status(404).json({ error: "Product not found" });
+  }
+
+  if (product.deleted_at) {
+    return res.status(409).json({
+      error: "Product has already been deleted.",
+      deleted_at: product.deleted_at,
+    });
   }
 
   db.prepare(

@@ -6,12 +6,14 @@ import type { ProductDetail, Variant } from "@/types";
 import { formatPrice, cn } from "@/lib/utils";
 import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 import { ProductNotFoundPage } from "@/components/ProductNotFoundPage";
+import { PageErrorModal } from "@/components/PageErrorModal";
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [notFoundMessage, setNotFoundMessage] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -38,15 +40,27 @@ export default function ProductDetailPage() {
     setIsDeleting(true);
     try {
       const res = await deleteProduct(Number(id));
-      if (!res.ok) {
-        // Product was already deleted or never existed
+      if (res.status === 409) {
+        const data = await res.json();
+        const deletedAt = data.deleted_at
+          ? new Date(data.deleted_at + "Z").toLocaleString(undefined, {
+              dateStyle: "long",
+              timeStyle: "short",
+            })
+          : "an earlier time";
         setIsDeleteModalOpen(false);
-        setNotFoundMessage("This product has already been deleted or no longer exists.");
+        setDeleteError(`This product was already deleted on ${deletedAt}.`);
+        return;
+      }
+      if (!res.ok) {
+        setIsDeleteModalOpen(false);
+        setDeleteError("Failed to delete the product. Please try again.");
         return;
       }
       navigate("/products");
     } catch (e) {
       console.error(e);
+      setDeleteError("A network error occurred. Please try again.");
     } finally {
       setIsDeleting(false);
       setIsDeleteModalOpen(false);
@@ -176,6 +190,14 @@ export default function ProductDetailPage() {
         title="Delete Product"
         description={`Are you sure you want to delete "${product.name}"? This action cannot be undone.`}
         isConfirming={isDeleting}
+      />
+
+      <PageErrorModal
+        isOpen={deleteError !== null}
+        onClose={() => setDeleteError(null)}
+        title="Product already deleted"
+        message={deleteError ?? ""}
+        autoRedirect={false}
       />
     </div>
   );
