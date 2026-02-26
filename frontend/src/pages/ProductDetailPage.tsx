@@ -36,7 +36,7 @@ export default function ProductDetailPage() {
 
   // Delete handler
   const confirmDelete = async () => {
-    if (!id) return;
+    if (!id || isDeleting) return;
     setIsDeleting(true);
     try {
       const res = await deleteProduct(Number(id));
@@ -139,7 +139,8 @@ export default function ProductDetailPage() {
 
           <button
             onClick={() => setIsDeleteModalOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 bg-background px-3 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
+            disabled={isDeleting}
+            className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 bg-background px-3 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:pointer-events-none disabled:opacity-50"
           >
             <Trash2 className="h-4 w-4" />
             Delete
