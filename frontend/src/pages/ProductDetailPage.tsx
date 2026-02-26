@@ -4,11 +4,15 @@ import { ArrowLeft, Pencil, Trash2, Package, Check, X } from "lucide-react";
 import { fetchProduct, deleteProduct, updateVariant } from "@/lib/api";
 import type { ProductDetail, Variant } from "@/types";
 import { formatPrice, cn } from "@/lib/utils";
+import { ConfirmDeleteModal } from "@/components/ConfirmDeleteModal";
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [product, setProduct] = useState<ProductDetail | null>(null);
+
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -18,15 +22,19 @@ export default function ProductDetailPage() {
       .catch(console.error);
   }, [id]);
 
-  // Delete handler — sends soft-delete request.
-  // FIXME: The button does not disable while the request is in flight,
-  //        so rapid clicks can send multiple DELETE requests.
-  const handleDelete = async () => {
+  // Delete handler
+  const confirmDelete = async () => {
     if (!id) return;
-    if (!window.confirm("Are you sure you want to delete this product?"))
-      return;
-    await deleteProduct(Number(id));
-    navigate("/products");
+    setIsDeleting(true);
+    try {
+      await deleteProduct(Number(id));
+      navigate("/products");
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsDeleting(false);
+      setIsDeleteModalOpen(false);
+    }
   };
 
   const handleVariantUpdate = (updatedVariant: Variant) => {
@@ -94,7 +102,7 @@ export default function ProductDetailPage() {
           </div>
 
           <button
-            onClick={handleDelete}
+            onClick={() => setIsDeleteModalOpen(true)}
             className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 bg-background px-3 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
           >
             <Trash2 className="h-4 w-4" />
@@ -140,6 +148,15 @@ export default function ProductDetailPage() {
           </div>
         </div>
       </section>
+
+      <ConfirmDeleteModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={confirmDelete}
+        title="Delete Product"
+        description={`Are you sure you want to delete "${product.name}"? This action cannot be undone.`}
+        isConfirming={isDeleting}
+      />
     </div>
   );
 }
