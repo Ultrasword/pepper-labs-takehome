@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Pencil, Trash2, Package, Check, X } from "lucide-react";
+import { ArrowLeft, Pencil, Trash2, Package, Check, X, PackageSearch } from "lucide-react";
 import { fetchProduct, deleteProduct, updateVariant } from "@/lib/api";
 import type { ProductDetail, Variant } from "@/types";
 import { formatPrice, cn } from "@/lib/utils";
@@ -10,6 +10,9 @@ export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [product, setProduct] = useState<ProductDetail | null>(null);
+  const [notFound, setNotFound] = useState(false);
+  const [countdown, setCountdown] = useState(3);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -17,10 +20,29 @@ export default function ProductDetailPage() {
   useEffect(() => {
     if (!id) return;
     fetchProduct(Number(id))
-      .then((r) => r.json())
-      .then(setProduct)
-      .catch(console.error);
+      .then((r) => {
+        if (!r.ok) { setNotFound(true); return null; }
+        return r.json();
+      })
+      .then((data) => { if (data) setProduct(data); })
+      .catch(() => setNotFound(true));
   }, [id]);
+
+  // Start a 3s countdown when product is not found, then redirect.
+  useEffect(() => {
+    if (!notFound) return;
+    countdownRef.current = setInterval(() => {
+      setCountdown((c) => {
+        if (c <= 1) {
+          clearInterval(countdownRef.current!);
+          navigate("/products");
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(countdownRef.current!);
+  }, [notFound, navigate]);
 
   // Delete handler
   const confirmDelete = async () => {
@@ -48,6 +70,31 @@ export default function ProductDetailPage() {
       };
     });
   };
+
+  if (notFound) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-muted">
+          <PackageSearch className="h-10 w-10 text-muted-foreground" />
+        </div>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Product not found</h1>
+        <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+          The product you're looking for doesn't exist or may have been deleted.
+        </p>
+        <p className="mt-4 text-sm font-medium text-muted-foreground">
+          Redirecting to catalogue in{" "}
+          <span className="tabular-nums text-foreground">{countdown}</span>s…
+        </p>
+        <Link
+          to="/products"
+          className="mt-6 inline-flex h-10 items-center gap-2 rounded-md bg-[#2E3330] px-5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#3a3f3c]"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Go to Catalogue
+        </Link>
+      </div>
+    );
+  }
 
   if (!product) {
     return (
