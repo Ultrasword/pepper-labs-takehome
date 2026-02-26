@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { ArrowLeft, Pencil, Trash2, Package, Check, X } from "lucide-react";
 import { fetchProduct, deleteProduct, updateVariant } from "@/lib/api";
 import type { ProductDetail, Variant } from "@/types";
@@ -10,13 +10,13 @@ import { PageErrorModal } from "@/components/PageErrorModal";
 
 export default function ProductDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [notFoundMessage, setNotFoundMessage] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteSuccess, setDeleteSuccess] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -57,7 +57,9 @@ export default function ProductDetailPage() {
         setDeleteError("Failed to delete the product. Please try again.");
         return;
       }
-      navigate("/products");
+      setIsDeleteModalOpen(false);
+      setDeleteSuccess(true);
+      return;
     } catch (e) {
       console.error(e);
       setDeleteError("A network error occurred. Please try again.");
@@ -198,6 +200,15 @@ export default function ProductDetailPage() {
         title="Product already deleted"
         message={deleteError ?? ""}
         autoRedirect={false}
+      />
+
+      <PageErrorModal
+        isOpen={deleteSuccess}
+        onClose={() => setDeleteSuccess(false)}
+        variant="success"
+        title="Product deleted"
+        message={`"${product.name}" was successfully deleted. You'll be redirected to the catalogue shortly.`}
+        autoRedirect={true}
       />
     </div>
   );

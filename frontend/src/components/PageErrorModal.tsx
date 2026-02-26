@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertTriangle, ArrowLeft, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle, X } from "lucide-react";
 
 interface PageErrorModalProps {
   /** Whether the modal is currently shown. */
@@ -16,6 +16,8 @@ interface PageErrorModalProps {
    * after the modal opens. Set to false to require manual dismissal.
    */
   autoRedirect?: boolean;
+  /** Visual style of the modal. Defaults to "error" (red). Use "success" for green. */
+  variant?: "error" | "success";
 }
 
 export function PageErrorModal({
@@ -24,6 +26,7 @@ export function PageErrorModal({
   title = "Something went wrong",
   message,
   autoRedirect = true,
+  variant = "error",
 }: PageErrorModalProps) {
   const navigate = useNavigate();
   const [countdown, setCountdown] = useState(3);
@@ -73,9 +76,15 @@ export function PageErrorModal({
         </button>
 
         {/* Icon */}
-        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-          <AlertTriangle className="h-6 w-6 text-destructive" />
-        </div>
+        {variant === "success" ? (
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
+            <CheckCircle className="h-6 w-6 text-emerald-600" />
+          </div>
+        ) : (
+          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
+            <AlertTriangle className="h-6 w-6 text-destructive" />
+          </div>
+        )}
 
         {/* Content */}
         <h2 className="text-base font-semibold text-foreground">{title}</h2>
