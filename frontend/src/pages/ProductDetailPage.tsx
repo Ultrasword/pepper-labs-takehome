@@ -36,7 +36,7 @@ export default function ProductDetailPage() {
 
   // Delete handler
   const confirmDelete = async () => {
-    if (!id) return;
+    if (!id || isDeleting) return;
     setIsDeleting(true);
     try {
       const res = await deleteProduct(Number(id));
@@ -59,6 +59,7 @@ export default function ProductDetailPage() {
       }
       setIsDeleteModalOpen(false);
       setDeleteSuccess(true);
+      setProduct((prev) => (prev ? { ...prev, deleted_at: new Date().toISOString() } : prev));
       return;
     } catch (e) {
       console.error(e);
@@ -119,15 +120,17 @@ export default function ProductDetailPage() {
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <span
                 className={cn(
-                  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold",
-                  product.status === "active"
+                  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold uppercase tracking-wider",
+                  product.deleted_at
+                    ? "border-destructive/30 bg-destructive/10 text-destructive"
+                    : product.status === "active"
                     ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                     : product.status === "draft"
                       ? "border-amber-200 bg-amber-50 text-amber-700"
                       : "border-gray-200 bg-gray-100 text-gray-600"
                 )}
               >
-                {product.status}
+                {product.deleted_at ? "Deleted & Invalid" : product.status}
               </span>
               {product.category_name && (
                 <span className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
@@ -139,7 +142,8 @@ export default function ProductDetailPage() {
 
           <button
             onClick={() => setIsDeleteModalOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 bg-background px-3 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10"
+            disabled={isDeleting || !!product.deleted_at}
+            className="inline-flex items-center gap-1.5 rounded-md border border-destructive/30 bg-background px-3 py-2 text-sm font-medium text-destructive transition-colors hover:bg-destructive/10 disabled:pointer-events-none disabled:opacity-50"
           >
             <Trash2 className="h-4 w-4" />
             Delete
@@ -177,7 +181,12 @@ export default function ProductDetailPage() {
               </thead>
               <tbody className="[&_tr:last-child]:border-0">
                 {product.variants.map((v) => (
-                  <VariantRow key={v.id} variant={v} onUpdate={handleVariantUpdate} />
+                  <VariantRow
+                    key={v.id}
+                    variant={v}
+                    onUpdate={handleVariantUpdate}
+                    disabled={!!product.deleted_at}
+                  />
                 ))}
               </tbody>
             </table>
@@ -219,9 +228,11 @@ export default function ProductDetailPage() {
 function VariantRow({
   variant,
   onUpdate,
+  disabled,
 }: {
   variant: Variant;
   onUpdate: (updated: Variant) => void;
+  disabled?: boolean;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -405,8 +416,9 @@ function VariantRow({
       </td>
       <td className="p-4 text-right align-middle">
         <button
-          className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50 disabled:pointer-events-none"
           onClick={startEditing}
+          disabled={disabled}
         >
           <Pencil className="h-3 w-3" />
           Edit
