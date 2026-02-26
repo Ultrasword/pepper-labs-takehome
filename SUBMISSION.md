@@ -2,7 +2,7 @@
 
 **Candidate name:** Petteri Kivimäki
 **Date:** 2026-02-26
-**Time spent:** 2 hours
+**Time spent:** 2.5 hours
 
 ---
 
