@@ -107,16 +107,83 @@ router.get("/:id", (req, res) => {
  *   ]
  * }
  */
-router.post("/", (_req, res) => {
-  // TODO: Implement product creation
-  // 1. Validate required fields (name is required, variants array must have at least one entry)
-  // 2. Validate each variant (sku required + unique, price_cents >= 0, inventory_count >= 0)
-  // 3. Insert product and variants inside a transaction
-  // 4. Return the created product with its variants
-  res.status(501).json({
-    error: "Not implemented",
-    hint: "Implement product creation with validation and a database transaction",
-  });
+router.post("/", (req, res) => {
+  try {
+    const { name, description, category_id, status, variants } = req.body;
+
+    // 1. Validate required fields
+    if (!name || typeof name !== "string") {
+      return res.status(400).json({ error: "Product name is required and must be a string." });
+    }
+    if (!Array.isArray(variants) || variants.length === 0) {
+      return res.status(400).json({ error: "At least one variant is required." });
+    }
+
+    // Validate Status if provided
+    const validStatuses = ["active", "draft", "archived"];
+    const productStatus = status && validStatuses.includes(status) ? status : "active";
+
+    // 2. Validate each variant
+    for (let i = 0; i < variants.length; i++) {
+      const v = variants[i];
+      if (!v.sku || typeof v.sku !== "string") {
+        return res.status(400).json({ error: `Variant at index ${i} requires a valid SKU.` });
+      }
+      if (!v.name || typeof v.name !== "string") {
+        return res.status(400).json({ error: `Variant at index ${i} requires a valid name.` });
+      }
+      if (typeof v.price_cents !== "number" || v.price_cents < 0) {
+        return res.status(400).json({ error: `Variant at index ${i} requires price_cents >= 0.` });
+      }
+      if (typeof v.inventory_count !== "number" || v.inventory_count < 0) {
+        return res.status(400).json({ error: `Variant at index ${i} requires inventory_count >= 0.` });
+      }
+    }
+
+    // 3. Insert product and variants inside a transaction
+    const insertProduct = db.prepare(
+      `INSERT INTO products (name, description, category_id, status)
+       VALUES (?, ?, ?, ?)`
+    );
+    const insertVariant = db.prepare(
+      `INSERT INTO variants (product_id, sku, name, price_cents, inventory_count)
+       VALUES (?, ?, ?, ?, ?)`
+    );
+
+    const createProductTx = db.transaction((pName, pDesc, pCat, pStatus, pVariants) => {
+      const pResult = insertProduct.run(pName, pDesc, pCat, pStatus);
+      const newProductId = Number(pResult.lastInsertRowid);
+
+      for (const v of pVariants) {
+        insertVariant.run(newProductId, v.sku, v.name, v.price_cents, v.inventory_count);
+      }
+      return newProductId;
+    });
+
+    const newProductId = createProductTx(name, description || null, category_id || null, productStatus, variants);
+
+    // 4. Return the created product with its variants
+    const newProduct = db
+      .prepare(
+        `SELECT p.*, c.name AS category_name
+         FROM products p
+         LEFT JOIN categories c ON p.category_id = c.id
+         WHERE p.id = ?`
+      )
+      .get(newProductId) as Record<string, unknown>;
+
+    const insertedVariants = db
+      .prepare(`SELECT * FROM variants WHERE product_id = ? ORDER BY created_at ASC`)
+      .all(newProductId);
+
+    res.status(201).json({ ...newProduct, variants: insertedVariants });
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes("UNIQUE constraint failed: variants.sku")) {
+      return res.status(409).json({ error: "One or more SKUs are already in use." });
+    }
+    const message = err instanceof Error ? err.message : "Unknown error";
+    res.status(500).json({ error: message });
+  }
 });
 
 /**
