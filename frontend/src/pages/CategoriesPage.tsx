@@ -5,15 +5,22 @@ import type { Category } from "@/types";
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCategories()
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`Server error ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
         setCategories(data);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setError("Failed to load categories. Please try again.");
+        setLoading(false);
+      });
   }, []);
 
   if (loading) {
@@ -22,6 +29,10 @@ export default function CategoriesPage() {
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     );
+  }
+
+  if (error) {
+    return <div className="rounded-md bg-destructive/10 p-4 text-sm text-destructive">{error}</div>;
   }
 
   return (
@@ -48,17 +59,10 @@ export default function CategoriesPage() {
             </thead>
             <tbody className="[&_tr:last-child]:border-0">
               {categories.map((c) => (
-                <tr
-                  key={c.id}
-                  className="border-b transition-colors hover:bg-muted/50"
-                >
+                <tr key={c.id} className="border-b transition-colors hover:bg-muted/50">
                   <td className="p-4 align-middle font-medium">{c.name}</td>
-                  <td className="p-4 align-middle text-muted-foreground">
-                    {c.description || "—"}
-                  </td>
-                  <td className="p-4 text-right align-middle tabular-nums">
-                    {c.product_count}
-                  </td>
+                  <td className="p-4 align-middle text-muted-foreground">{c.description || "—"}</td>
+                  <td className="p-4 text-right align-middle tabular-nums">{c.product_count}</td>
                 </tr>
               ))}
             </tbody>

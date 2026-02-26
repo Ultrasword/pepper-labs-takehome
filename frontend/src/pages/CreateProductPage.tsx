@@ -20,9 +20,12 @@ export default function CreateProductPage() {
 
   useEffect(() => {
     fetch("http://localhost:3001/api/categories")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`Server error ${res.status}`);
+        return res.json();
+      })
       .then((data) => setCategories(data))
-      .catch((err) => console.error("Failed to load categories", err));
+      .catch(() => setError("Failed to load categories. Category selection may be unavailable."));
   }, []);
 
   const addVariant = () => {
@@ -34,7 +37,11 @@ export default function CreateProductPage() {
     setVariants(variants.filter((_, i) => i !== index));
   };
 
-  const updateVariant = (index: number, field: "sku" | "name" | "priceStr" | "inventoryCount", value: string) => {
+  const updateVariant = (
+    index: number,
+    field: "sku" | "name" | "priceStr" | "inventoryCount",
+    value: string,
+  ) => {
     const newVariants = [...variants];
     const target = newVariants[index];
     if (target) {
@@ -75,7 +82,7 @@ export default function CreateProductPage() {
         throw new Error(errorData.error || `HTTP ${res.status}`);
       }
 
-      const product = await res.json() as ProductDetail;
+      const product = (await res.json()) as ProductDetail;
       navigate(`/products/${product.id}`);
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -159,7 +166,9 @@ export default function CreateProductPage() {
                 value={categoryId.toString()}
                 onChange={(e) => setCategoryId(e.target.value === "" ? "" : Number(e.target.value))}
               >
-                <option value="" disabled hidden>-- Select a Category --</option>
+                <option value="" disabled hidden>
+                  -- Select a Category --
+                </option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
