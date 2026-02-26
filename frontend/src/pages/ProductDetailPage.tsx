@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { ArrowLeft, Pencil, Trash2, Package } from "lucide-react";
-import { fetchProduct, deleteProduct } from "@/lib/api";
+import { ArrowLeft, Pencil, Trash2, Package, Check, X } from "lucide-react";
+import { fetchProduct, deleteProduct, updateVariant } from "@/lib/api";
 import type { ProductDetail, Variant } from "@/types";
 import { formatPrice, cn } from "@/lib/utils";
 
@@ -27,6 +27,18 @@ export default function ProductDetailPage() {
       return;
     await deleteProduct(Number(id));
     navigate("/products");
+  };
+
+  const handleVariantUpdate = (updatedVariant: Variant) => {
+    setProduct((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        variants: prev.variants.map((v) =>
+          v.id === updatedVariant.id ? updatedVariant : v
+        ),
+      };
+    });
   };
 
   if (!product) {
@@ -121,7 +133,7 @@ export default function ProductDetailPage() {
               </thead>
               <tbody className="[&_tr:last-child]:border-0">
                 {product.variants.map((v) => (
-                  <VariantRow key={v.id} variant={v} />
+                  <VariantRow key={v.id} variant={v} onUpdate={handleVariantUpdate} />
                 ))}
               </tbody>
             </table>
@@ -134,10 +146,141 @@ export default function ProductDetailPage() {
 
 /* ------------------------------------------------------------------ */
 
-function VariantRow({ variant }: { variant: Variant }) {
-  const lowStock =
-    variant.inventory_count > 0 && variant.inventory_count <= 10;
+function VariantRow({
+  variant,
+  onUpdate,
+}: {
+  variant: Variant;
+  onUpdate: (updated: Variant) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Editable fields stored as strings for input binding
+  const [priceInput, setPriceInput] = useState("");
+  const [inventoryInput, setInventoryInput] = useState("");
+
+  const lowStock = variant.inventory_count > 0 && variant.inventory_count <= 10;
   const outOfStock = variant.inventory_count === 0;
+
+  const startEditing = () => {
+    // Initialise inputs from current variant values
+    setPriceInput((variant.price_cents / 100).toFixed(2));
+    setInventoryInput(String(variant.inventory_count));
+    setError(null);
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setError(null);
+  };
+
+  const handleSave = async () => {
+    const price = parseFloat(priceInput);
+    const inventory = parseInt(inventoryInput, 10);
+
+    if (isNaN(price) || price < 0) {
+      setError("Price must be a non-negative number.");
+      return;
+    }
+    if (isNaN(inventory) || inventory < 0) {
+      setError("Inventory must be a non-negative whole number.");
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      const res = await updateVariant(variant.id, {
+        price_cents: Math.round(price * 100),
+        inventory_count: inventory,
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error ?? "Failed to save changes.");
+        return;
+      }
+
+      const updated: Variant = await res.json();
+      onUpdate(updated);
+      setIsEditing(false);
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <>
+        <tr className="border-b bg-muted/30 transition-colors">
+          <td className="p-4 align-middle font-mono text-xs">
+            {variant.sku}
+          </td>
+          <td className="p-4 align-middle font-medium">{variant.name}</td>
+          {/* Price input */}
+          <td className="p-4 text-right align-middle">
+            <div className="inline-flex items-center justify-end">
+              <span className="mr-1 text-muted-foreground">$</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={priceInput}
+                onChange={(e) => setPriceInput(e.target.value)}
+                className="w-24 rounded border border-input bg-background px-2 py-1 text-right text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+            </div>
+          </td>
+          {/* Inventory input */}
+          <td className="p-4 text-right align-middle">
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={inventoryInput}
+              onChange={(e) => setInventoryInput(e.target.value)}
+              className="w-20 rounded border border-input bg-background px-2 py-1 text-right text-sm tabular-nums focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </td>
+          {/* Save / Cancel */}
+          <td className="p-4 text-right align-middle">
+            <div className="inline-flex items-center gap-1.5">
+              <button
+                onClick={handleSave}
+                disabled={isSaving}
+                className="inline-flex items-center gap-1 rounded-md border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
+              >
+                <Check className="h-3 w-3" />
+                {isSaving ? "Saving…" : "Save"}
+              </button>
+              <button
+                onClick={cancelEditing}
+                disabled={isSaving}
+                className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+              >
+                <X className="h-3 w-3" />
+                Cancel
+              </button>
+            </div>
+          </td>
+        </tr>
+        {/* Inline error row */}
+        {error && (
+          <tr className="border-b bg-destructive/5">
+            <td colSpan={5} className="px-4 py-1.5 text-xs text-destructive">
+              {error}
+            </td>
+          </tr>
+        )}
+      </>
+    );
+  }
 
   return (
     <tr className="border-b transition-colors hover:bg-muted/50">
@@ -164,10 +307,7 @@ function VariantRow({ variant }: { variant: Variant }) {
       <td className="p-4 text-right align-middle">
         <button
           className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          onClick={() => {
-            // TODO: Open variant edit form / dialog
-            alert("Variant editing is not yet implemented.");
-          }}
+          onClick={startEditing}
         >
           <Pencil className="h-3 w-3" />
           Edit
