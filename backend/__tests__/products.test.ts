@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import request from "supertest";
 import app from "../src/app";
 import db from "../src/db";
@@ -96,5 +96,62 @@ describe("Products API - POST /api/products", () => {
 
     expect(res.status).toBe(409);
     expect(res.body.error).toMatch(/SKUs are already in use/);
+  });
+});
+
+describe("Products API - Soft Deletes", () => {
+  let productId: number;
+
+  // Create a fresh product before each test so each one starts clean
+  beforeEach(async () => {
+    const res = await request(app)
+      .post("/api/products")
+      .send({
+        name: "Test Product SoftDelete",
+        variants: [
+          { sku: `TEST-SKU-SD-${Date.now()}`, name: "Default", price_cents: 100, inventory_count: 5 },
+        ],
+      });
+    productId = res.body.id;
+  });
+
+  afterAll(() => {
+    db.prepare(`DELETE FROM variants WHERE sku LIKE 'TEST-SKU-SD-%'`).run();
+    db.prepare(`DELETE FROM products WHERE name = 'Test Product SoftDelete'`).run();
+  });
+
+  it("DELETE /api/products/:id sets deleted_at in the database", async () => {
+    const res = await request(app).delete(`/api/products/${productId}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    // Verify the row was soft-deleted (deleted_at is now non-null)
+    const row = db
+      .prepare("SELECT deleted_at FROM products WHERE id = ?")
+      .get(productId) as { deleted_at: string | null };
+
+    expect(row).toBeDefined();
+    expect(row.deleted_at).not.toBeNull();
+  });
+
+  it("GET /api/products excludes soft-deleted products from the list", async () => {
+    // Soft-delete the product
+    await request(app).delete(`/api/products/${productId}`);
+
+    const res = await request(app).get("/api/products");
+
+    expect(res.status).toBe(200);
+    const ids = (res.body as { id: number }[]).map((p) => p.id);
+    expect(ids).not.toContain(productId);
+  });
+
+  it("GET /api/products/:id returns 404 for a soft-deleted product", async () => {
+    // Soft-delete the product
+    await request(app).delete(`/api/products/${productId}`);
+
+    const res = await request(app).get(`/api/products/${productId}`);
+
+    expect(res.status).toBe(404);
   });
 });

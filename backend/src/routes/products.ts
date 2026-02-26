@@ -32,7 +32,7 @@ router.get("/", (req, res) => {
       LEFT JOIN variants v ON v.product_id = p.id
     `;
 
-    const conditions: string[] = [];
+    const conditions: string[] = ["p.deleted_at IS NULL"];
     const params: unknown[] = [];
 
     if (search) {
@@ -45,9 +45,7 @@ router.get("/", (req, res) => {
       params.push(Number(category_id));
     }
 
-    if (conditions.length > 0) {
-      query += " WHERE " + conditions.join(" AND ");
-    }
+    query += " WHERE " + conditions.join(" AND ");
 
     query += " GROUP BY p.id ORDER BY p.created_at DESC";
 
@@ -71,7 +69,7 @@ router.get("/:id", (req, res) => {
         `SELECT p.*, c.name AS category_name
          FROM products p
          LEFT JOIN categories c ON p.category_id = c.id
-         WHERE p.id = ?`
+         WHERE p.id = ? AND p.deleted_at IS NULL`
       )
       .get(Number(req.params.id)) as Record<string, unknown> | undefined;
 
