@@ -158,6 +158,8 @@ function VariantRow({
   const [error, setError] = useState<string | null>(null);
 
   // Editable fields stored as strings for input binding
+  const [nameInput, setNameInput] = useState("");
+  const [skuInput, setSkuInput] = useState("");
   const [priceInput, setPriceInput] = useState("");
   const [inventoryInput, setInventoryInput] = useState("");
 
@@ -166,6 +168,8 @@ function VariantRow({
 
   const startEditing = () => {
     // Initialise inputs from current variant values
+    setNameInput(variant.name);
+    setSkuInput(variant.sku);
     setPriceInput((variant.price_cents / 100).toFixed(2));
     setInventoryInput(String(variant.inventory_count));
     setError(null);
@@ -178,8 +182,19 @@ function VariantRow({
   };
 
   const handleSave = async () => {
+    const trimmedName = nameInput.trim();
+    const trimmedSku = skuInput.trim();
     const price = parseFloat(priceInput);
     const inventory = parseInt(inventoryInput, 10);
+
+    if (!trimmedName) {
+      setError("Name is required.");
+      return;
+    }
+    if (!trimmedSku) {
+      setError("SKU is required.");
+      return;
+    }
 
     if (isNaN(price) || price < 0) {
       setError("Price must be a non-negative number.");
@@ -195,6 +210,8 @@ function VariantRow({
 
     try {
       const res = await updateVariant(variant.id, {
+        name: trimmedName,
+        sku: trimmedSku,
         price_cents: Math.round(price * 100),
         inventory_count: inventory,
       });
@@ -219,10 +236,22 @@ function VariantRow({
     return (
       <>
         <tr className="border-b bg-muted/30 transition-colors">
-          <td className="p-4 align-middle font-mono text-xs">
-            {variant.sku}
+          <td className="p-4 align-middle">
+            <input
+              type="text"
+              value={skuInput}
+              onChange={(e) => setSkuInput(e.target.value)}
+              className="w-32 rounded border border-input bg-background px-2 py-1 font-mono text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+            />
           </td>
-          <td className="p-4 align-middle font-medium">{variant.name}</td>
+          <td className="p-4 align-middle">
+            <input
+              type="text"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              className="w-36 rounded border border-input bg-background px-2 py-1 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+          </td>
           {/* Price input */}
           <td className="p-4 text-right align-middle">
             <div className="inline-flex items-center justify-end">
