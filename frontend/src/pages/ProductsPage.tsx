@@ -10,6 +10,8 @@ export default function ProductsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState<number | undefined>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const hasFilters = Boolean(search || categoryId);
 
@@ -18,15 +20,26 @@ export default function ProductsPage() {
     fetchCategories()
       .then((r) => r.json())
       .then(setCategories)
-      .catch(() => {});
+      .catch(() => {}); // categories are non-critical (just filter options)
   }, []);
 
   // Fetch products when filters change
   useEffect(() => {
+    setLoading(true);
+    setError(null);
     fetchProducts({ search: search || undefined, category_id: categoryId })
-      .then((r) => r.json())
-      .then(setProducts)
-      .catch(() => {});
+      .then((r) => {
+        if (!r.ok) throw new Error(`Server error ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        setProducts(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        setError("Failed to load products. Please try again.");
+        setLoading(false);
+      });
   }, [search, categoryId]);
 
   const clearFilters = () => {
@@ -58,9 +71,7 @@ export default function ProductsPage() {
           <label className="mb-1.5 block text-sm font-medium">Category</label>
           <select
             value={categoryId ?? ""}
-            onChange={(e) =>
-              setCategoryId(e.target.value ? Number(e.target.value) : undefined)
-            }
+            onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : undefined)}
             className="flex h-10 w-full items-center rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <option value="">All categories</option>
@@ -94,23 +105,39 @@ export default function ProductsPage() {
         </div>
       </div>
 
-      {/* Result count */}
-      <p className="mb-4 text-sm text-muted-foreground">
-        {products.length} result{products.length !== 1 ? "s" : ""} found
-      </p>
+      {/* Error banner */}
+      {error && (
+        <div className="mb-4 rounded-md bg-destructive/10 p-4 text-sm text-destructive">
+          {error}
+        </div>
+      )}
 
-      {/* Product grid — 5 columns on xl like original CatalogGrid */}
-      {products.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
-          <p className="text-lg font-medium">No products found</p>
-          <p className="mt-1 text-sm">Try adjusting your search or filters.</p>
+      {/* Loading spinner */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {products.map((p) => (
-            <ProductCard key={p.id} product={p} />
-          ))}
-        </div>
+        <>
+          {/* Result count */}
+          <p className="mb-4 text-sm text-muted-foreground">
+            {products.length} result{products.length !== 1 ? "s" : ""} found
+          </p>
+
+          {/* Product grid — 5 columns on xl like original CatalogGrid */}
+          {products.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+              <p className="text-lg font-medium">No products found</p>
+              <p className="mt-1 text-sm">Try adjusting your search or filters.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {products.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
